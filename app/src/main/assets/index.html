@@ -6,7 +6,39 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#070e1c">
+<meta http-equiv="Content-Security-Policy" content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;">
+<script>
+// Fix para WebView Android — localStorage puede fallar en file://
+(function(){
+  try { localStorage.setItem('_t','1'); localStorage.removeItem('_t'); }
+  catch(e){
+    // Fallback: memoria en sesión
+    var _store = {};
+    window.localStorage = {
+      getItem: function(k){ return _store[k]||null; },
+      setItem: function(k,v){ _store[k]=String(v); },
+      removeItem: function(k){ delete _store[k]; },
+      clear: function(){ _store={}; }
+    };
+  }
+})();
+</script>
 <title>Mundial FIFA 2026</title>
+<meta http-equiv="Content-Security-Policy" content="default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:;">
+<script>
+(function(){
+  try{localStorage.setItem('_t','1');localStorage.removeItem('_t');}
+  catch(e){
+    var _s={};
+    window.localStorage={
+      getItem:function(k){return _s.hasOwnProperty(k)?_s[k]:null;},
+      setItem:function(k,v){_s[k]=String(v);},
+      removeItem:function(k){delete _s[k];},
+      clear:function(){_s={};}
+    };
+  }
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -734,7 +766,7 @@ let unread    = parseInt(localStorage.getItem('wc_unread')||'0');
 let scheduled = new Map();
 let prevSc    = new Map();
 
-function tryParse(k,def){try{return JSON.parse(localStorage.getItem(k)||def);}catch{return JSON.parse(def);}}
+function tryParse(k,def){try{var v=localStorage.getItem(k);return JSON.parse(v||def);}catch(e){return JSON.parse(def);}}
 
 // ── TZ ───────────────────────────────────────────────────────────
 function etToLocal(u){
@@ -795,8 +827,10 @@ function bestScore(m,st){
 
 // ── RENDER CALENDAR ───────────────────────────────────────────────
 function applyFilter(){
-  curSearch=document.getElementById('searchBox').value;
+  curSearch=document.getElementById('searchBox').value.trim();
   curPhase=document.getElementById('phaseFilter').value;
+  // Si hay búsqueda de texto, ignorar filtro de fase
+  if(curSearch) curPhase='all';
   renderCalendar();
 }
 function renderCalendar(){
@@ -806,7 +840,11 @@ function renderCalendar(){
     const q=curSearch.toLowerCase().trim();
     return !q||m.home.toLowerCase().includes(q)||m.away.toLowerCase().includes(q)||m.venue.toLowerCase().includes(q)||m.label.toLowerCase().includes(q);
   });
-  if(!filtered.length){el.innerHTML='<div class="nod"><div class="ndi">🔍</div>Sin resultados</div>';return;}
+  if(!filtered.length){
+    var msg = curSearch ? 
+      '<div class="nod"><div class="ndi">🔍</div><p>No hay partidos de <b>'+curSearch+'</b></p><p style="font-size:11px;margin-top:8px;color:var(--mu)">Prueba: Mexico, Brazil, Spain, Argentina...</p></div>' :
+      '<div class="nod"><div class="ndi">📅</div><p>Sin partidos</p></div>';
+    el.innerHTML=msg;return;}
 
   const dayMap=new Map();
   filtered.forEach(m=>{
@@ -1329,8 +1367,8 @@ function tick(){
   renderScorers();
   renderLog();
   updateLiveWidget();
-  tick();
-  setInterval(tick,1000);
+  try{ tick(); }catch(e){}
+  setInterval(function(){ try{tick();}catch(e){} },1000);
   setInterval(()=>{
     const calActive=document.getElementById('tab-calendar').classList.contains('active');
     if(calActive) renderCalendar();
@@ -1490,6 +1528,14 @@ function renderScorers(){
     else if(dx>0&&cur>0)        showTab(TABS[cur-1],null,null);
   });
 })();
+
+// Bridge Android nativo
+window.AndroidBridge = {
+  isAndroid: function(){ return !!(window.AndroidNotif && window.AndroidNotif.isAndroid && window.AndroidNotif.isAndroid()); },
+  sendGoal: function(t,b){ try{ if(window.AndroidNotif) window.AndroidNotif.sendGoalNotif(t,b); else sendNotif(t,b,{vibrate:[300,100,300]}); }catch(e){} },
+  sendAlert: function(t,b){ try{ if(window.AndroidNotif) window.AndroidNotif.sendAlertNotif(t,b); else sendNotif(t,b,{}); }catch(e){} },
+  vibrate: function(ms){ try{ if(window.AndroidNotif) window.AndroidNotif.vibrate(ms); else if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+};
 
 // Exponer funciones al scope global (llamadas desde HTML onclick)
 window.onTZChange=onTZChange;
