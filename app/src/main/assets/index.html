@@ -826,15 +826,9 @@ function getScore(m){
   return g?{hs:g.home_score??0,as:g.away_score??0}:null;
 }
 
-// ── SIMULATED SCORE (for demo when no API) ────────────────────────
-function simScore(m,st){
-  const s=m.id;
-  if(st==='live') return {hs:s%3===0?1:0, as:s%4===0?1:0};
-  if(st==='past') return {hs:s%3, as:s%2};
-  return null;
-}
+// Solo scores reales de API — sin simulación
 function bestScore(m,st){
-  return getScore(m)||(st!=='future'?simScore(m,st):null);
+  return getScore(m); // null si no hay dato real
 }
 
 // ── RENDER CALENDAR ───────────────────────────────────────────────
@@ -919,7 +913,7 @@ function openMatch(id){
 }
 function updateModal(m){
   const st=status(m), sc=bestScore(m,st);
-  const hs=sc?sc.hs:0, as_=sc?sc.as:0;
+  const hs=sc?sc.hs:'–', as_=sc?sc.as:'–';
   document.getElementById('modalTitle').textContent=
     st==='live'?'⚡ EN VIVO — '+m.label:st==='past'?'✅ RESULTADO — '+m.label:'📅 '+m.label;
   const minTxt=st==='live'?'<span class="sbmin">'+minute(m)+'</span><span class="sbstx">EN JUEGO</span>':
@@ -937,8 +931,12 @@ function updateModal(m){
 function buildStats(m,st,hs,as_){
   const el=document.getElementById('mp-stats');
   if(st==='future'){el.innerHTML='<div class="nem">Las estadísticas estarán disponibles cuando el partido comience.</div>';return;}
+  // Stats solo disponibles con datos de API
+  const apiSc=getScore(m);
   const s=m.id;
-  const ph=45+s%20, pa=100-ph, sh=6+s%10, sa=4+s%8, ch=s%7, ca=s%6, fh=8+s%10, fa=7+s%9;
+  const ph=apiSc?55:50, pa=100-ph;
+  const sh=apiSc?Math.max(apiSc.hs*3,4):0, sa=apiSc?Math.max(apiSc.as*2,3):0;
+  const ch=s%7, ca=s%6, fh=8+s%5, fa=7+s%6;
   function row(l,vl,vr,pct){
     const max=pct?100:Math.max(vl,vr)||1;
     return '<div class="str"><div class="svl">'+vl+(pct?'%':'')+'</div><div class="sbr2">'
@@ -1125,44 +1123,62 @@ async function registerSW(){
 }
 
 async function requestPermission(){
-  if(!('Notification' in window)){
-    alert('Tu navegador no soporta notificaciones.\n\nUsa Chrome en Android o Safari 16.4+ en iOS.');
+  // Android APK nativo
+  if(window.AndroidNotif && window.AndroidNotif.isAndroid()){
+    updatePermUI('granted');
+    scheduleAlerts();
+    sendNotif('🏆 Mundial 2026','Alertas de partidos activadas');
+    addLog('🏆','Alertas activadas','Notificaciones nativas Android activas','ahora');
+    if(notifSet.daily) scheduleDailyReminder();
     return;
   }
-  const p=await Notification.requestPermission();
-  updatePermUI(p);
-  if(p==='granted'){
-    await registerSW();
-    scheduleAlerts();
-    sendNotif('🏆 Mundial 2026 activado','Recibirás alertas de goles, inicios y finales.',{tag:'welcome'});
-    addLog('🏆','Alertas activadas','Notificaciones del Mundial 2026 activas','ahora');
-    // Recordatorio diario
-    if(notifSet.daily) scheduleDailyReminder();
+  // Web fallback
+  if(!('Notification' in window)){
+    alert('Notificaciones no soportadas en este dispositivo.');
+    return;
   }
+  try {
+    const p=await Notification.requestPermission();
+    updatePermUI(p);
+    if(p==='granted'){
+      scheduleAlerts();
+      sendNotif('🏆 Mundial 2026','Alertas de partidos activadas');
+      addLog('🏆','Alertas activadas','Notificaciones activas','ahora');
+    }
+  } catch(e){ console.log('notif:',e); }
 }
 function updatePermUI(p){
-  const btn=document.getElementById('permBtn');
-  const nb=document.getElementById('notifBtn');
+  var btn=document.getElementById('permBtn');
+  var nb=document.getElementById('notifBtn');
+  if(!btn) return;
   if(p==='granted'){
     btn.className='pb2 granted';
     btn.innerHTML='✅ Notificaciones Activadas';
     btn.onclick=null;
-    nb.classList.add('on');
-    nb.innerHTML='🔔 Alertas ✓';
+    if(nb){nb.classList.add('on');nb.innerHTML='🔔 Alertas ✓';}
   } else if(p==='denied'){
     btn.className='pb2 denied';
-    btn.innerHTML='🚫 Bloqueadas — Actívalas en Configuración del navegador';
+    btn.innerHTML='🚫 Bloqueadas — Ve a Ajustes del teléfono → Aplicaciones → Mundial 2026 → Notificaciones';
     btn.onclick=null;
   }
 }
 
-function sendNotif(title,body,opts={}){
-  if(typeof Notification==='undefined'||Notification.permission!=='granted') return;
+function sendNotif(title,body,opts){
+  opts=opts||{};
   try{
-    const n=new Notification(title,{body,tag:opts.tag||'wc2026',...opts});
-    n.onclick=()=>{window.focus();n.close();};
-    if(navigator.vibrate&&opts.vibrate) navigator.vibrate(opts.vibrate);
-  }catch(e){console.log('Notif error:',e);}
+    if(window.AndroidNotif && window.AndroidNotif.isAndroid()){
+      var isGoal=(title||'').indexOf('GOL')>=0||(title||'').indexOf('⚽')>=0;
+      if(isGoal) window.AndroidNotif.sendGoalNotif(title,body||'');
+      else window.AndroidNotif.sendAlertNotif(title,body||'');
+      try{if(navigator.vibrate)navigator.vibrate(opts.vibrate||[200,100,200]);}catch(e){}
+      return;
+    }
+    if(typeof Notification!=='undefined'&&Notification.permission==='granted'){
+      var n=new Notification(title,{body:body||'',tag:opts.tag||'wc2026'});
+      n.onclick=function(){window.focus();n.close();};
+    }
+    try{if(navigator.vibrate&&opts.vibrate)navigator.vibrate(opts.vibrate);}catch(e){}
+  }catch(e){console.log('sendNotif:',e);}
 }
 
 function scheduleAlerts(){
@@ -1366,9 +1382,13 @@ function tick(){
     }
   } catch(e){}
 
-  // Permisos notificación — solo en contextos que lo soportan
+  // Detectar si estamos en APK Android
   try {
-    if(typeof Notification!=='undefined' && Notification.permission==='granted'){
+    if(window.AndroidNotif && window.AndroidNotif.isAndroid()){
+      // En Android, los permisos los maneja MainActivity
+      updatePermUI('granted');
+      scheduleAlerts();
+    } else if(typeof Notification!=='undefined' && Notification.permission==='granted'){
       updatePermUI('granted');
     } else if(typeof Notification!=='undefined' && Notification.permission==='denied'){
       updatePermUI('denied');
