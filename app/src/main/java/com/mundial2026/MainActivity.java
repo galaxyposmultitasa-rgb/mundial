@@ -19,7 +19,6 @@ import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
 public class MainActivity extends Activity {
-
     private WebView webView;
     private NotificationManager notifManager;
     private int notifId = 100;
@@ -27,50 +26,38 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        // Pantalla completa
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         getWindow().setStatusBarColor(0xFF070e1c);
         getWindow().setNavigationBarColor(0xFF070e1c);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            );
-        }
 
         webView = new WebView(this);
         setContentView(webView);
 
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);           // ← localStorage habilitado
+        s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
-        s.setAllowFileAccess(true);             // ← acceso a assets
+        s.setAllowFileAccess(true);
         s.setAllowContentAccess(true);
-        s.setAllowFileAccessFromFileURLs(true); // ← JS puede leer assets
+        s.setAllowFileAccessFromFileURLs(true);
         s.setAllowUniversalAccessFromFileURLs(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        s.setMediaPlaybackRequiresUserGesture(false);
-        s.setUserAgentString("Mundial2026App/1.0 Android/" + Build.VERSION.SDK_INT);
+        s.setUserAgentString("Mundial2026App/1.1 Android");
 
-        // Hardware acceleration
         webView.setLayerType(WebView.LAYER_TYPE_HARDWARE, null);
         webView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient());
-
-        // Bridge JS → Java
         webView.addJavascriptInterface(new NotifBridge(), "AndroidNotif");
-
-        // Cargar app
         webView.loadUrl("file:///android_asset/index.html");
 
-        // Canales de notificación
         createChannels();
+        requestNotifPermission();
+    }
 
-        // Permisos Android 13+
+    private void requestNotifPermission() {
         if (Build.VERSION.SDK_INT >= 33) {
             if (ContextCompat.checkSelfPermission(this,
                     android.Manifest.permission.POST_NOTIFICATIONS)
@@ -84,65 +71,71 @@ public class MainActivity extends Activity {
     private void createChannels() {
         notifManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel g = new NotificationChannel("goals", "⚽ Goles",
-                NotificationManager.IMPORTANCE_HIGH);
+            NotificationChannel g = new NotificationChannel(
+                "goals", "⚽ Goles", NotificationManager.IMPORTANCE_HIGH);
             g.setVibrationPattern(new long[]{0,300,100,300,100,300});
             g.enableVibration(true);
             notifManager.createNotificationChannel(g);
 
-            NotificationChannel a = new NotificationChannel("alerts", "🔔 Alertas",
-                NotificationManager.IMPORTANCE_DEFAULT);
+            NotificationChannel a = new NotificationChannel(
+                "alerts", "🔔 Alertas", NotificationManager.IMPORTANCE_DEFAULT);
             a.setVibrationPattern(new long[]{0,200,100,200});
             a.enableVibration(true);
             notifManager.createNotificationChannel(a);
 
-            NotificationChannel d = new NotificationChannel("daily", "📅 Diario",
-                NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel d = new NotificationChannel(
+                "daily", "📅 Recordatorio", NotificationManager.IMPORTANCE_LOW);
             notifManager.createNotificationChannel(d);
         }
     }
 
     public class NotifBridge {
         @JavascriptInterface
+        public boolean isAndroid() { return true; }
+
+        @JavascriptInterface
         public void sendGoalNotif(String title, String body) {
-            postNotif(title, body, "goals", new long[]{0,300,100,300,100,300});
+            post(title, body, "goals", new long[]{0,300,100,300,100,300},
+                NotificationCompat.PRIORITY_HIGH);
         }
+
         @JavascriptInterface
         public void sendAlertNotif(String title, String body) {
-            postNotif(title, body, "alerts", new long[]{0,200,100,200});
+            post(title, body, "alerts", new long[]{0,200,100,200},
+                NotificationCompat.PRIORITY_DEFAULT);
         }
+
         @JavascriptInterface
         public void sendDailyNotif(String title, String body) {
-            postNotif(title, body, "daily", null);
+            post(title, body, "daily", null,
+                NotificationCompat.PRIORITY_LOW);
         }
+
         @JavascriptInterface
         public void vibrate(int ms) {
             try {
-                android.os.Vibrator v = (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
+                android.os.Vibrator v =
+                    (android.os.Vibrator) getSystemService(VIBRATOR_SERVICE);
                 if (v != null) v.vibrate(ms);
-            } catch(Exception e){}
+            } catch (Exception e) {}
         }
-        @JavascriptInterface
-        public boolean isAndroid() { return true; }
-        @JavascriptInterface
-        public String getVersion() { return "1.0"; }
     }
 
-    private void postNotif(String title, String body, String channel, long[] vibration) {
+    private void post(String title, String body, String ch,
+                      long[] vib, int priority) {
         if (notifManager == null) return;
         try {
-            NotificationCompat.Builder b = new NotificationCompat.Builder(this, channel)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setContentTitle(title)
-                .setContentText(body)
-                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
-                .setAutoCancel(true)
-                .setPriority("goals".equals(channel) 
-                    ? NotificationCompat.PRIORITY_HIGH 
-                    : NotificationCompat.PRIORITY_DEFAULT);
-            if (vibration != null) b.setVibrate(vibration);
+            NotificationCompat.Builder b =
+                new NotificationCompat.Builder(MainActivity.this, ch)
+                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setContentTitle(title)
+                    .setContentText(body)
+                    .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+                    .setAutoCancel(true)
+                    .setPriority(priority);
+            if (vib != null) b.setVibrate(vib);
             notifManager.notify(notifId++, b.build());
-        } catch(Exception e){}
+        } catch (Exception e) {}
     }
 
     @Override
@@ -156,8 +149,8 @@ public class MainActivity extends Activity {
         super.onResume();
         if (webView != null) {
             webView.evaluateJavascript(
-                "(function(){try{if(typeof fetchLive==='function')fetchLive();" +
-                "if(typeof renderCalendar==='function')renderCalendar();}catch(e){}})();", null);
+                "try{if(typeof renderCalendar==='function')renderCalendar();" +
+                "if(typeof fetchLive==='function')fetchLive();}catch(e){}", null);
         }
     }
 }
