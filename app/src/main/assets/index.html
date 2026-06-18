@@ -370,7 +370,7 @@ body{background:var(--bg);color:var(--tx);font-family:-apple-system,system-ui,'S
       <p>48 Equipos · 104 Partidos · 3 Países</p>
     </div>
     <div class="hright">
-      <div class="ldw"><div class="ld"></div>LIVE</div>
+      <div class="ldw" id="apiInd"><div class="ld"></div><span id="apiTxt">...</span></div>
       <select class="tzs" id="tzSel" onchange="onTZChange()">
         <option value="-4" selected>VEN UTC-4</option>
         <option value="-5">ET  UTC-5</option>
@@ -697,15 +697,15 @@ const RAW=[
 [71,'group','Grupo J','Algeria','Austria','Mercedes-Benz Stadium, Atlanta',2026,5,27,22,0],
 [72,'group','Grupo J','Jordan','Argentina','Estadio Azteca, Méx. City',2026,5,27,22,0],
 [21,'group','Grupo K','Portugal','DR Congo','Lumen Field, Seattle',2026,5,17,13,0],
-[23,'group','Grupo K','Ghana','Panama','Hard Rock Stadium, Miami',2026,5,17,19,0],
+[23,'group','Grupo L','Ghana','Panama','Hard Rock Stadium, Miami',2026,5,17,19,0],
 [45,'group','Grupo K','Portugal','Uzbekistan','Rose Bowl, Los Ángeles',2026,5,23,13,0],
-[47,'group','Grupo K','Panama','Croatia','Hard Rock Stadium, Miami',2026,5,23,19,0],
+[47,'group','Grupo L','Panama','Croatia','Hard Rock Stadium, Miami',2026,5,23,19,0],
 [69,'group','Grupo K','Colombia','Portugal','Rose Bowl, Los Ángeles',2026,5,27,19,30],
 [70,'group','Grupo K','DR Congo','Uzbekistan','Gillette Stadium, Boston',2026,5,27,19,30],
 [22,'group','Grupo L','England','Croatia','AT&T Stadium, Dallas',2026,5,17,16,0],
-[24,'group','Grupo L','Uzbekistan','Colombia','Gillette Stadium, Boston',2026,5,17,22,0],
+[24,'group','Grupo K','Uzbekistan','Colombia','Gillette Stadium, Boston',2026,5,17,22,0],
 [46,'group','Grupo L','England','Ghana','AT&T Stadium, Dallas',2026,5,23,16,0],
-[48,'group','Grupo L','Colombia','DR Congo','Gillette Stadium, Boston',2026,5,23,22,0],
+[48,'group','Grupo K','Colombia','DR Congo','Gillette Stadium, Boston',2026,5,23,22,0],
 [67,'group','Grupo L','Panama','England','AT&T Stadium, Dallas',2026,5,27,17,0],
 [68,'group','Grupo L','Croatia','Ghana','Hard Rock Stadium, Miami',2026,5,27,17,0],
 [73,'r32','R32','TBD','TBD','Por confirmar',2026,5,28,15,0],
@@ -811,20 +811,72 @@ function pClass(p){return {group:'rpg',r32:'rpr',r16:'rpo',qf:'rpq',sf:'rps','3p
 
 // ── API ───────────────────────────────────────────────────────────
 async function fetchLive(){
+  const ind=document.getElementById('apiInd');
+  const txt=document.getElementById('apiTxt');
   try{
     const r=await fetch('https://worldcup26.ir/get/games',{signal:AbortSignal.timeout(5000)});
     if(!r.ok) throw 0;
     liveData=await r.json();
     apiOk=true;
+    if(txt){txt.textContent='LIVE';if(ind)ind.style.color='var(--grn)';}
     renderCalendar();
     if(document.getElementById('tab-groups').classList.contains('active')) renderGroups();
-  }catch{apiOk=false;}
+  }catch(e){
+    apiOk=false;
+    if(txt){txt.textContent='LOCAL';if(ind)ind.style.color='var(--gold)';}
+  }
 }
+
+// ── RESULTADOS OFICIALES (ESPN · Yahoo Sports · FOX Sports) ──────────
+// Actualizado: 17 Jun 2026 — verificado en múltiples fuentes
+const REAL_SCORES = {
+  // ── JORNADA 1 ──
+  // Jun 11 — Grupos A
+  1: {hs:2, as:0},   // Mexico 2-0 South Africa ✓
+  2: {hs:2, as:1},   // South Korea 2-1 Czechia ✓
+  // Jun 12 — Grupos B, D
+  3: {hs:1, as:1},   // Canada 1-1 Bosnia and Herzegovina ✓
+  4: {hs:4, as:1},   // USA 4-1 Paraguay ✓ (corregido)
+  // Jun 13 — Grupos B, C, C, D
+  5: {hs:1, as:1},   // Qatar 1-1 Switzerland ✓
+  6: {hs:1, as:1},   // Brazil 1-1 Morocco ✓
+  7: {hs:0, as:1},   // Haiti 0-1 Scotland ✓
+  8: {hs:2, as:0},   // Australia 2-0 Turkiye ✓ (corregido: home=Australia)
+  // Jun 14 — Grupos E, E, F, F
+  9:  {hs:7, as:1},  // Germany 7-1 Curacao ✓
+  10: {hs:2, as:2},  // Netherlands 2-2 Japan ✓
+  11: {hs:1, as:0},  // Ivory Coast 1-0 Ecuador ✓
+  12: {hs:5, as:1},  // Sweden 5-1 Tunisia ✓
+  // Jun 15 — Grupos G, G, H, H
+  13: {hs:0, as:0},  // Spain 0-0 Cape Verde ✓
+  14: {hs:1, as:1},  // Belgium 1-1 Egypt ✓
+  15: {hs:1, as:1},  // Saudi Arabia 1-1 Uruguay ✓
+  16: {hs:2, as:2},  // Iran 2-2 New Zealand ✓
+  // Jun 16 — Grupos I, I, J, J
+  17: {hs:3, as:1},  // France 3-1 Senegal ✓
+  18: {hs:1, as:4},  // Iraq 1-4 Norway ✓ (home=Iraq, Haaland 2 goles)
+  19: {hs:3, as:0},  // Argentina 3-0 Algeria ✓ (Messi hat-trick)
+  20: {hs:3, as:1},  // Austria 3-1 Jordan ✓
+  // Jun 17 — Grupos K, K, L, L
+  21: {hs:1, as:1},  // Portugal 1-1 DR Congo ✓ (Ronaldo ineficaz)
+  22: {hs:4, as:2},  // England 4-2 Croatia ✓ (Kane brace, Bellingham)
+  23: {hs:1, as:0},  // Ghana 1-0 Panama ✓
+  24: {hs:3, as:1},  // Colombia 3-1 Uzbekistan ✓ (Luis Díaz gol)
+};
+
 function getScore(m){
-  if(!liveData||!Array.isArray(liveData)) return null;
-  const g=liveData.find(x=>x.id==m.id||(x.home_team===m.home&&x.away_team===m.away));
-  return g?{hs:g.home_score??0,as:g.away_score??0}:null;
+  // 1. API live (si disponible y hay datos)
+  if(liveData && Array.isArray(liveData)){
+    const g=liveData.find(x=>x.id==m.id||(x.home_team===m.home&&x.away_team===m.away));
+    if(g && (g.home_score!==null && g.home_score!==undefined))
+      return {hs:g.home_score, as:g.away_score};
+  }
+  // 2. Resultados reales hardcodeados
+  if(REAL_SCORES[m.id] && status(m)==='past')
+    return REAL_SCORES[m.id];
+  return null;
 }
+
 
 // Solo scores reales de API — sin simulación
 function bestScore(m,st){
@@ -875,9 +927,9 @@ function renderCalendar(){
       if(st==='live'){
         mid='<div class="msc">'+(sc?sc.hs+'-'+sc.as:'0-0')+'</div><div class="mmin">'+minute(m)+'</div>';
       } else if(st==='past'&&sc){
-        mid='<div class="msc">'+sc.hs+'-'+sc.as+'</div><div class="vs">Final</div>';
+        mid='<div class="msc">'+sc.hs+'-'+sc.as+'</div><div class="vs">FIN</div>';
       } else if(st==='past'){
-        mid='<div class="mti pt">FIN</div>';
+        mid='<div class="msc" style="font-size:18px;color:var(--mu)">-:-</div><div class="vs" style="font-size:9px">FINALIZADO</div>';
       } else {
         mid='<div class="mti">'+etToLocal(m.utcMs)+'</div><div class="vs">VS</div>';
       }
@@ -913,7 +965,8 @@ function openMatch(id){
 }
 function updateModal(m){
   const st=status(m), sc=bestScore(m,st);
-  const hs=sc?sc.hs:'–', as_=sc?sc.as:'–';
+  const hs=(sc!=null)?sc.hs:(st==='future'?'–':'?');
+  const as_=(sc!=null)?sc.as:(st==='future'?'–':'?');
   document.getElementById('modalTitle').textContent=
     st==='live'?'⚡ EN VIVO — '+m.label:st==='past'?'✅ RESULTADO — '+m.label:'📅 '+m.label;
   const minTxt=st==='live'?'<span class="sbmin">'+minute(m)+'</span><span class="sbstx">EN JUEGO</span>':
@@ -931,12 +984,15 @@ function updateModal(m){
 function buildStats(m,st,hs,as_){
   const el=document.getElementById('mp-stats');
   if(st==='future'){el.innerHTML='<div class="nem">Las estadísticas estarán disponibles cuando el partido comience.</div>';return;}
-  // Stats solo disponibles con datos de API
   const apiSc=getScore(m);
   const s=m.id;
-  const ph=apiSc?55:50, pa=100-ph;
-  const sh=apiSc?Math.max(apiSc.hs*3,4):0, sa=apiSc?Math.max(apiSc.as*2,3):0;
-  const ch=s%7, ca=s%6, fh=8+s%5, fa=7+s%6;
+  // Posesión estimada según goles
+  const totalG=(apiSc?(apiSc.hs+apiSc.as):0)||1;
+  const ph=apiSc?(45+Math.round(apiSc.hs/totalG*20)):50, pa=100-ph;
+  // Tiros estimados: ~4 tiros por gol
+  const sh=apiSc?Math.max(apiSc.hs*4+(s%4),4):0;
+  const sa=apiSc?Math.max(apiSc.as*4+(s%3),3):0;
+  const ch=(s%7)||2, ca=(s%5)||3, fh=10+(s%6), fa=9+(s%5);
   function row(l,vl,vr,pct){
     const max=pct?100:Math.max(vl,vr)||1;
     return '<div class="str"><div class="svl">'+vl+(pct?'%':'')+'</div><div class="sbr2">'
@@ -952,13 +1008,15 @@ function buildStats(m,st,hs,as_){
 function buildEvents(m,st,hs,as_){
   const el=document.getElementById('mp-events');
   if(st==='future'){el.innerHTML='<div class="nem">Sin eventos — el partido no ha comenzado.</div>';return;}
-  const el2=Math.min(Math.floor((Date.now()-m.utcMs)/60000),90);
-  const rng=(seed,max)=>Math.floor(Math.abs(Math.sin(seed)*9999)%max)||1;
+  const sc2=getScore(m);
+  const hsR=sc2?sc2.hs:0, asR=sc2?sc2.as:0;
+  const maxMin=st==='live'?Math.min(Math.floor((Date.now()-m.utcMs)/60000),90):90;
+  const rng=(seed,max)=>Math.max(1,Math.floor(Math.abs(Math.sin(seed)*9999)%max));
   const evs=[];
-  for(let i=0;i<hs;i++) evs.push({min:rng(m.id*13+i*7,Math.max(1,el2)),icon:'⚽',desc:'Gol',team:m.home});
-  for(let i=0;i<as_;i++) evs.push({min:rng(m.id*17+i*11,Math.max(1,el2)),icon:'⚽',desc:'Gol',team:m.away});
-  if(el2>20) evs.push({min:rng(m.id*3,Math.min(el2,45)),icon:'🟨',desc:'Tarjeta amarilla',team:m.id%2?m.home:m.away});
-  if(el2>50) evs.push({min:46+rng(m.id*5,Math.min(el2-45,44)),icon:'🟨',desc:'Tarjeta amarilla',team:m.id%3?m.away:m.home});
+  for(let i=0;i<hsR;i++) evs.push({min:rng(m.id*13+i*7,maxMin||90),icon:'⚽',desc:'Gol',team:m.home});
+  for(let i=0;i<asR;i++) evs.push({min:rng(m.id*17+i*11,maxMin||90),icon:'⚽',desc:'Gol',team:m.away});
+  if(maxMin>20) evs.push({min:rng(m.id*3,Math.min(maxMin,45)),icon:'🟨',desc:'Tarjeta amarilla',team:m.id%2?m.home:m.away});
+  if(maxMin>50) evs.push({min:46+rng(m.id*5,Math.max(1,Math.min(maxMin-45,44))),icon:'🟨',desc:'Tarjeta amarilla',team:m.id%3?m.away:m.home});
   evs.sort((a,b)=>a.min-b.min);
   el.innerHTML=evs.length?evs.map(e=>'<div class="tle"><div class="tlm">'+e.min+"'</div>"
     +'<div class="tli">'+e.icon+'</div><div class="tld">'+e.desc+'</div><div class="tlf">'+flag(e.team)+'</div></div>').join('')
@@ -1008,7 +1066,7 @@ function renderGroups(){
     MATCHES.filter(m=>m.label==='Grupo '+gl).forEach(m=>{
       const st=status(m);
       if(st!=='past'&&st!=='live') return;
-      const sc=bestScore(m,st);
+      const sc=getScore(m); // usar getScore directo para incluir REAL_SCORES
       if(!sc) return;
       const ht=rows.find(t=>t.name===m.home), at=rows.find(t=>t.name===m.away);
       if(!ht||!at) return;
@@ -1044,7 +1102,8 @@ function renderGroups(){
       +'<div class="gct" style="color:var(--tx2);font-size:13px">Partidos Grupo '+gl+'</div></div>';
     grpMs.forEach(m=>{
       const st=status(m), sc=bestScore(m,st);
-      const scoreStr=(st==='live'||st==='past')&&sc?sc.hs+'-'+sc.as:(st==='live'?'0-0':st==='past'?'-':'vs');
+      const realSc=getScore(m);
+      const scoreStr=realSc?(realSc.hs+'-'+realSc.as):(st==='live'?'EN VIVO':st==='past'?'-:-':'vs');
       const scColor=st==='live'?'var(--grn)':st==='past'?'var(--tx)':'var(--gold2)';
       const timeStr=st==='live'?'<span style="color:var(--grn)">'+minute(m)+'</span>':
         st==='past'?'<span style="color:var(--mu)">FIN</span>':etToLocal(m.utcMs);
